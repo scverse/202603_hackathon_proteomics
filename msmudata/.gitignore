@@ -1,0 +1,3 @@
+# --- Project-specific (git-ignored by design) ---
+data/*
+*.h5ad
