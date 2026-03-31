@@ -4,3 +4,6 @@ data/*
 *.json
 node_modules/
 LICENSE
+# --- Python ---
+__pycache__/
+*.py[cod]
