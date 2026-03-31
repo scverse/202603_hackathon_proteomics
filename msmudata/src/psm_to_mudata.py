@@ -7,6 +7,32 @@ from scipy.sparse import csr_matrix
 from itertools import combinations
 from scipy import sparse
 
+def supported_feature_level_parameters() -> dict[str, str]:
+    """
+    Return a dictionary of supported feature level parameters for the PSM to MuData conversion process.
+
+    """
+    return {
+        "diann": {
+            "precursor": {
+                "intensity_column": "Precursor.Quantity",
+                "feature_id_column": "Precursor.Id",
+                "level": "psm"
+            },
+            "protein": {
+                "intensity_column": "PG.MaxLFQ",
+                "feature_id_column": "Protein.Group",
+                "level": "protein"
+            },
+            "gene": {
+                "intensity_column": "Genes.MaxLFQ",
+                "feature_id_column": "Genes",
+                "level": "gene"
+            }
+        }
+    }
+    
+
 def get_unique_mappings(psm_path: str, feature_level_names: list[str]) -> pd.DataFrame:
     """
     Get unique mappings from PSM table for specified feature levels.
@@ -70,29 +96,34 @@ def create_mudata_diann(psm_path: str, feature_level_names: list[str]) -> md.MuD
     Returns:
     - DataFrame with unique mappings between the specified feature levels.
     """
+    # Get supported levels
+    level_parameters = supported_feature_level_parameters()['diann']
+    supported_levels = level_parameters.keys()
+
+    # TODO: shift this over to AlphaBase standardization for reading
+    # For now, get actual data column for requested levels from supported levels dic
+    actual_levels = []
+    for level in feature_level_names:
+        if level not in supported_levels:
+            raise ValueError(f"Unsupported feature level '{level}'. Supported levels for Diann are: {supported_levels}")
+        actual_levels.append(level_parameters[level]['feature_id_column'])
+
     #Create mapping between feature levels
-    mapping_df = get_unique_mappings(psm_path, feature_level_names)
+    mapping_df = get_unique_mappings(psm_path, actual_levels)
     matrix_varp = sparse_matrix_mapping(mapping_df)
 
-    # load precursor and protein data from diann with alphapepttools functions
-    prec_adata = at.io.read_psm_table(psm_path, level="psm", search_engine="diann", 
-                                    intensity_column="Precursor.Quantity", feature_id_column="Precursor.Id",
-                                    sample_id_column="Run", var_columns=feature_level_names
-                                    )
-
-    prot_adata = at.io.read_psm_table(psm_path, level="protein", search_engine="diann",
-                                    intensity_column="PG.MaxLFQ", feature_id_column="Protein.Group",
+    # iterate requested levels and load data
+    layer_dict = {}
+    for level in feature_level_names:
+        params = level_parameters[level]
+        adata = at.io.read_psm_table(psm_path, level=params['level'], search_engine="diann", 
+                                    intensity_column=params['intensity_column'], feature_id_column=params['feature_id_column'],
                                     sample_id_column="Run"
                                     )
-    
-    #TODO: make this generalizable to any feature level
+        layer_dict[f"{level}_level"] = adata
+
     mudata = md.MuData(
-    # These are the raw data levels
-        {
-            "protein_level": prot_adata,
-            #"peptide_level": ad.AnnData(...),
-            "precursor_level": prec_adata,
-        },
+        layer_dict
     )
 
     mudata.varp["feature_mapping"] = matrix_varp.reindex(index=mudata.var_names, columns=mudata.var_names)
