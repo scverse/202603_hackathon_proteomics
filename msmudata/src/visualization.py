@@ -33,13 +33,10 @@ def show_adjacency_matrix(mdata: md.MuData) -> None:
     features = list(mdata.var_names)
 
     # Create the figure
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(7, 7))
 
     # Create heatmap
     plt.imshow(adj_array, cmap='viridis', aspect='auto')
-
-    # Add colorbar
-    plt.colorbar(label='Connection')
 
     # Set ticks and labels
     plt.xticks(ticks=np.arange(len(features)), labels=features, rotation=90)
