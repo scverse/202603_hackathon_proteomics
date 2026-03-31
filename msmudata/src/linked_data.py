@@ -78,6 +78,7 @@ class LinkedData:
         self._adjacency_matrix = None
         self._feature_bounds = None
         self._adjacency_key = adjacency_key
+        self._filter_dict = None
 
         # Initialize with MuData if provided
         if mdata is not None:
@@ -242,7 +243,7 @@ class LinkedData:
         query_feature: Union[int, str],
         feature_level: str,
     ) -> dict[str, list[int]]:
-        """Get features associated with a query feature across all levels.
+        """Get features associated with a query feature across all levels and store as filter.
 
         Parameters
         ----------
@@ -275,12 +276,73 @@ class LinkedData:
         # Convert feature name to index if necessary
         query_feature_index = self._query_feature_to_index(query_feature, feature_level)
 
-        return slice_associated_features(
+        # Get associated features and store as filter
+        self._filter_dict = slice_associated_features(
             query_feature_index=query_feature_index,
             feature_level=feature_level,
             feature_bounds=self.feature_bounds,
             adjacency_matrix=self.adjacency_matrix
         )
+
+        return self._filter_dict
+
+    def to_anndata(
+        self,
+        feature_level: str,
+    ) -> ad.AnnData:
+        """Extract filtered AnnData for a specific modality.
+
+        Uses the filter dictionary set by get_associated_features to return
+        a filtered copy of the AnnData for the specified modality.
+
+        Parameters
+        ----------
+        feature_level : str
+            Name of the modality to extract (e.g., 'genes', 'proteins', 'precursors')
+
+        Returns
+        -------
+        ad.AnnData
+            Filtered copy of the AnnData containing only the features in the filter
+
+        Examples
+        --------
+        >>> # First set the filter
+        >>> ld.get_associated_features('gene0', 'genes')
+        >>> # Then extract filtered data
+        >>> filtered_proteins = ld.to_anndata('proteins')
+        >>> filtered_precursors = ld.to_anndata('precursors')
+        """
+        if self._filter_dict is None:
+            raise ValueError("No filter set. Call get_associated_features first.")
+
+        if self._mdata is None:
+            raise ValueError("No MuData available")
+
+        if feature_level not in self._mdata.mod:
+            raise ValueError(f"Modality '{feature_level}' not found. Available: {list(self._mdata.mod.keys())}")
+
+        # Get the indices for this feature level from the filter
+        if feature_level not in self._filter_dict:
+            raise ValueError(f"Feature level '{feature_level}' not in filter dict")
+
+        feature_indices = self._filter_dict[feature_level]
+
+        if not feature_indices:
+            logger.warning(f"No features to filter for {feature_level}")
+            # Return empty AnnData with same obs
+            adata = self._mdata.mod[feature_level]
+            return ad.AnnData(
+                X=adata.X[:, :0],
+                obs=adata.obs.copy(),
+                var=pd.DataFrame(index=pd.Index([], name=adata.var.index.name))
+            )
+
+        # Get the AnnData and filter by features
+        adata = self._mdata.mod[feature_level]
+        filtered_adata = adata[:, feature_indices].copy()
+
+        return filtered_adata
 
     def __repr__(self) -> str:
         """String representation of LinkedData object."""
