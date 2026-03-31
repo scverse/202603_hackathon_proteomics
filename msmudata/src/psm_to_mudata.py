@@ -85,7 +85,7 @@ def create_mudata_diann(psm_path: str, feature_level_names: list[str]) -> md.MuD
                                     sample_id_column="Run"
                                     )
     
-    #create mudata object
+    #TODO: make this generalizable to any feature level
     mudata = md.MuData(
     # These are the raw data levels
         {
