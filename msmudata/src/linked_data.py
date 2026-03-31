@@ -208,6 +208,16 @@ class LinkedData:
                 f"MuData n_vars ({n_vars}). Consider reconstructing."
             )
 
+    def _query_feature_to_query_feature_index(
+        self,
+        query_feature_index: int,
+        feature_level: str,
+    ):
+        """Convert query feature (e.g. gene, protein, precursor) to the corresponding feature index from the AnnData"""
+        feature_adata = self._mdata.mod[feature_level]
+        feature_index = feature_adata.var_names.get_loc(feature_adata.var_names[query_feature_index])
+        return feature_index
+
     def get_associated_features(
         self,
         query_feature_index: int,
