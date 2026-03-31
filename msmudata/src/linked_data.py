@@ -14,7 +14,7 @@ from scipy.sparse import csr_matrix
 import logging
 
 from .adjancency_matrix_construct import get_unique_mappings, adjacency_matrix_from_mapping
-from .adjacency_matrix_subset import extract_feature_bounds_from_mudata, feature_index_to_adjacency_index, adjacency_index_to_feature_index, slice_associated_features
+from .adjacency_matrix_subset import extract_feature_bounds_from_mudata, slice_associated_features
 
 logger = logging.getLogger(__name__)
 
@@ -208,40 +208,72 @@ class LinkedData:
                 f"MuData n_vars ({n_vars}). Consider reconstructing."
             )
 
-    def _query_feature_to_query_feature_index(
+    def _query_feature_to_index(
         self,
-        query_feature_index: int,
+        query_feature: Union[int, str],
         feature_level: str,
-    ):
-        """Convert query feature (e.g. gene, protein, precursor) to the corresponding feature index from the AnnData"""
-        feature_adata = self._mdata.mod[feature_level]
-        feature_index = feature_adata.var_names.get_loc(feature_adata.var_names[query_feature_index])
-        return feature_index
+    ) -> int:
+        """Convert query feature to the corresponding feature index from the AnnData.
+
+        Parameters
+        ----------
+        query_feature : Union[int, str]
+            Either the feature name (str) or index (int)
+        feature_level : str
+            The modality name
+
+        Returns
+        -------
+        int
+            The numerical index of the feature
+        """
+        if isinstance(query_feature, int):
+            # Already an index, just return it
+            return query_feature
+        elif isinstance(query_feature, str):
+            # Convert feature name to index
+            feature_adata = self._mdata.mod[feature_level]
+            return feature_adata.var_names.get_loc(query_feature)
+        else:
+            raise TypeError(f"query_feature must be int or str, got {type(query_feature)}")
 
     def get_associated_features(
         self,
-        query_feature_index: int,
+        query_feature: Union[int, str],
         feature_level: str,
     ) -> dict[str, list[int]]:
         """Get features associated with a query feature across all levels.
 
         Parameters
         ----------
-        query_feature_index : int
-            Index of the feature in its modality
+        query_feature : Union[int, str]
+            Either the feature name (e.g., 'gene0', 'protein1') or its index (0, 1, 2...)
         feature_level : str
-            Name of the modality containing the query feature
+            Name of the modality containing the query feature (e.g., 'genes', 'proteins')
 
         Returns
         -------
         dict[str, list[int]]
             Dictionary mapping modality names to lists of associated feature indices
+
+        Examples
+        --------
+        >>> # Query by feature name
+        >>> ld.get_associated_features('gene0', 'genes')
+        {'genes': [0], 'proteins': [0, 1], 'precursors': [0, 1, 2]}
+
+        >>> # Query by feature index
+        >>> ld.get_associated_features(0, 'genes')
+        {'genes': [0], 'proteins': [0, 1], 'precursors': [0, 1, 2]}
         """
         if self.adjacency_matrix is None:
             raise ValueError("No adjacency matrix available")
 
         if self.feature_bounds is None:
             raise ValueError("No feature bounds available")
+
+        # Convert feature name to index if necessary
+        query_feature_index = self._query_feature_to_index(query_feature, feature_level)
 
         return slice_associated_features(
             query_feature_index=query_feature_index,
