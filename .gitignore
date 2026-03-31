@@ -4,3 +4,9 @@ data/*
 *.json
 node_modules/
 LICENSE
+
+# --- System files ---
+.DS_Store
+**/.DS_Store
+__pycache__/
+**/__pycache__/
